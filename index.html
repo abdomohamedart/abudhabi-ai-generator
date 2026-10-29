@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shifting Wordmark Generator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,9 +28,7 @@ header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 52ch }
 
 .stage { position: relative; border-radius: 6px; background: var(--sbg); transition: background .35s ease; padding: clamp(28px, 7vw, 96px) clamp(12px, 4vw, 56px) clamp(20px, 4vw, 44px);
   display: flex; flex-direction: column; gap: 18px; outline: 1px solid var(--line) }
-.stage[data-c="night"] { --sbg: var(--night); --sfg: var(--mist); --slab: var(--muted) }
-.stage[data-c="mist"] { --sbg: var(--mist); --sfg: var(--night); --slab: #5E645F }
-.stage[data-c="mono"] { --sbg: #FFFFFF; --sfg: var(--ink); --slab: #6B6B6B }
+.stage { --sbg: var(--night); --sfg: var(--mist); --slab: var(--muted) }   /* set from the Ground / Letters swatches */
 .word { position: relative; width: 100%; perspective: 1200px }
 .word .g { position: absolute; transform-origin: 50% 50%; }
 .word .g svg { width: 100%; height: 100%; display: block; overflow: visible }
@@ -37,8 +40,10 @@ header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 52ch }
 @keyframes flip { from { transform: rotateY(-78deg) rotateZ(-6deg) scale(.92); opacity: 0 } 60% { opacity: 1 } to { transform: none; opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .g.in { animation: none } }
 
-.rail { display: grid; grid-template-columns: auto 1fr auto; gap: 14px 22px; align-items: center }
+.rail { display: grid; grid-template-columns: auto 1fr; gap: 14px 22px; align-items: center }
 @media (max-width: 860px) { .rail { grid-template-columns: 1fr } }
+.palette { display: flex; flex-wrap: wrap; gap: 12px 36px }
+.palette .sw { flex-wrap: wrap } .palette .label { width: 62px }
 .go { appearance: none; border: 0; border-radius: 999px; background: var(--mist); color: var(--night); font: 600 15px var(--sans); padding: 13px 26px; cursor: pointer; display: inline-flex; gap: 10px; align-items: center }
 .go:hover { background: #fff } .go kbd { font: 500 11px var(--mono); border: 1px solid #9aa29c; border-radius: 4px; padding: 1px 5px; color: #4b504c }
 .seg { display: flex; flex-wrap: wrap; gap: 6px }
@@ -47,7 +52,7 @@ header p { margin: 0; color: var(--muted); font-size: 13px; max-width: 52ch }
 .seg button:hover { border-color: var(--muted) }
 button:focus-visible { outline: 2px solid var(--mist); outline-offset: 2px }
 .sw { display: flex; gap: 8px; align-items: center }
-.sw button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0 }
+.sw button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0 }
 .sw button[aria-pressed="true"] { outline: 2px solid var(--mist); outline-offset: 2px }
 
 .meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; align-items: center; border-top: 1px solid var(--line); padding-top: 16px }
@@ -66,6 +71,8 @@ button:focus-visible { outline: 2px solid var(--mist); outline-offset: 2px }
 .counts { color: var(--muted); font-size: 13px; margin: 0 }
 textarea.fallback { width: 100%; height: 90px; background: var(--panel); color: var(--mist); border: 1px solid var(--line); border-radius: 6px; font: 11px var(--mono) }
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -81,12 +88,11 @@ textarea.fallback { width: 100%; height: 90px; background: var(--panel); color: 
   <div class="rail">
     <button class="go" id="go" type="button">Generate <kbd>Space</kbd></button>
     <div class="seg" id="modes" role="group" aria-label="Rule"></div>
-    <div class="sw" id="colors" role="group" aria-label="Colour">
-      <span class="label">Colour</span>
-      <button type="button" id="c-night" data-c="night" aria-label="Mist on Night" style="background:#1E1F1B"></button>
-      <button type="button" id="c-mist" data-c="mist" aria-label="Night on Mist" style="background:#DCE6E0"></button>
-      <button type="button" id="c-mono" data-c="mono" aria-label="Black on white" style="background:#FFFFFF"></button>
-    </div>
+  </div>
+
+  <div class="palette">
+    <div class="sw" id="grounds" role="group" aria-label="Ground colour"><span class="label">Ground</span></div>
+    <div class="sw" id="inks" role="group" aria-label="Letter colour"><span class="label">Letters</span></div>
   </div>
 
   <div class="meta">
@@ -214,12 +220,35 @@ MODES.forEach(m => {
   b.onclick = () => { cur.mode = m.id; [...modes.children].forEach(x => x.setAttribute('aria-pressed', x === b)); next() };
   modes.appendChild(b);
 });
-// colours
+// colours: Direction 03 palette. Night + Mist carry the name; the six warm accents are optional extras.
+const PAL = [['Night', '#1E1F1B'], ['Mist', '#DCE6E0'], ['White', '#FFFFFF'], ['Black', '#111111'],
+  ['Umber', '#442108'], ['Oxblood', '#5F0003'], ['Coral', '#FB6D78'], ['Forest', '#084221'], ['Clay', '#D88955'], ['Sand', '#E6BCA3']];
+const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2] };
+const mixHex = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
 const stage = document.getElementById('stage');
-document.querySelectorAll('#colors button').forEach(b => {
-  b.setAttribute('aria-pressed', b.dataset.c === 'night');
-  b.onclick = () => { stage.dataset.c = b.dataset.c; document.querySelectorAll('#colors button').forEach(x => x.setAttribute('aria-pressed', x === b)) };
-});
+let col = { g: 0, l: 1 };                          // indexes into PAL: ground, letters
+function paint() {
+  const bg = PAL[col.g][1], fg = PAL[col.l][1];
+  stage.style.setProperty('--sbg', bg); stage.style.setProperty('--sfg', fg);
+  stage.style.setProperty('--slab', mixHex(bg, lum(bg) > .4 ? '#000000' : '#FFFFFF', .45));    // system names: quiet, on any ground
+  for (const [id, k] of [['grounds', 'g'], ['inks', 'l']])
+    document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === col[k]));
+}
+for (const [id, k, verb] of [['grounds', 'g', 'Ground'], ['inks', 'l', 'Letters']]) {
+  const box = document.getElementById(id);
+  PAL.forEach(([n, h], i) => {
+    if (k === 'g' && n === 'Black') return;        // ground options: Night, Mist, White + accents
+    const b = document.createElement('button'); b.type = 'button'; b.style.background = h; b.title = `${n} ${h}`;
+    b.setAttribute('aria-label', `${verb}: ${n}`); b.dataset.i = i;
+    b.onclick = () => {
+      col[k] = i;
+      if (col.g === col.l) col[k === 'g' ? 'l' : 'g'] = lum(h) > .4 ? 0 : 1;   // never the same colour on itself
+      paint();
+    };
+    box.appendChild(b);
+  });
+}
+paint();
 document.getElementById('go').onclick = () => next();
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' && !/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); next() }
@@ -232,19 +261,22 @@ async function copy(text, okMsg) {
   catch (e) { fb.hidden = false; fb.value = text; fb.focus(); fb.select(); say('Copy is blocked here: the code is selected below, press Cmd+C.') }
 }
 document.getElementById('copy-svg').onclick = () => {
-  const c = { night: ['#DCE6E0', '#1E1F1B'], mist: ['#1E1F1B', '#DCE6E0'], mono: ['#111111', null] }[stage.dataset.c];
-  copy(svgString(cur.st, c[0], c[1]), 'SVG copied. Paste it into Illustrator or Figma.');
+  copy(svgString(cur.st, PAL[col.l][1], PAL[col.g][0] === 'White' ? null : PAL[col.g][1]), 'SVG copied. Paste it into Illustrator or Figma.');
 };
 document.getElementById('copy-link').onclick = () => {
-  const base = 'https://claude.ai/artifact/VQqPxeMqwQWfUJkeUaeWKa' || location.href.split('#')[0];   // the page's own address is the viewer frame, so use the published link
-  copy(base + '#' + code(cur.st), 'Link copied: it opens this exact version.');
+  const base = 'https://abdomohamedart.github.io/abudhabi-ai-generator/' || location.href.split('#')[0];   // the page's own address is the viewer frame, so use the published link
+  copy(base + '#' + code(cur.st) + `.${col.g}.${col.l}`, 'Link copied: it opens this exact version, in these colours.');
 };
 
 document.getElementById('counts').textContent =
   `All combinations: ${fmt(Math.pow(N, 10))} with no rules · ${fmt(MODES[0].count())} in Full mix · ${N} systems × 10 letters.`;
 
 // start: a version from the link, or a new random one
-const fromHash = parse(location.hash.slice(1));
+const [hv, hg, hl] = location.hash.slice(1).split('.'), fromHash = parse(hv);
+if (+hg < PAL.length && +hl < PAL.length && hg !== hl && PAL[+hg][0] !== 'Black') { col = { g: +hg, l: +hl }; paint() }
 if (fromHash && fromHash.every(k => k < N)) { cur.st = fromHash; render(cur.st, true); showMeta(); addHist(cur.st) }
 else next();
 </script>
+
+</body>
+</html>
